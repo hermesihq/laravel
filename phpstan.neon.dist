@@ -1,0 +1,13 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/Support/server.php
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Testbench types its application as nullable, and artisan() as either a pending command or an int.
+        -
+            identifier: method.nonObject
+            path: tests/*

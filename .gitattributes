@@ -1,0 +1,8 @@
+# What `composer require` downloads is the dist archive, and this keeps the tests, the tooling and CI out of it.
+/.github        export-ignore
+/tests          export-ignore
+/.gitattributes export-ignore
+/.gitignore     export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/phpstan.neon.dist export-ignore
+/phpunit.xml.dist export-ignore

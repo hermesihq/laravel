@@ -1,0 +1,58 @@
+{
+    "name": "hermesihq/laravel",
+    "description": "Laravel integration for Hermesi: a facade, a test fake and a queued job on top of hermesihq/hermesi.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["hermesi", "laravel", "notifications", "queue", "push", "email"],
+    "homepage": "https://github.com/hermesihq/laravel",
+    "support": {
+        "issues": "https://github.com/hermesihq/laravel/issues",
+        "source": "https://github.com/hermesihq/laravel"
+    },
+    "require": {
+        "php": "^8.1",
+        "hermesihq/hermesi": "^0.1",
+        "illuminate/contracts": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/queue": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "guzzlehttp/guzzle": "^7.9",
+        "orchestra/testbench": "^8.0 || ^9.0 || ^10.0 || ^11.0",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^10.5 || ^11.0 || ^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hermesi\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Hermesi\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Hermesi\\Laravel\\HermesiServiceProvider"
+            ],
+            "aliases": {
+                "Hermesi": "Hermesi\\Laravel\\Facades\\Hermesi"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse",
+        "cs": "php-cs-fixer fix --dry-run --diff"
+    },
+    "minimum-stability": "stable"
+}

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Laravel 10 and 11 are past their security support, and Composer blocks every release of them for known advisories.
+          # They are tested with that check off, because applications still run them; see the CHANGELOG.
+          - { php: "8.1", laravel: "10", testbench: "8", blocking: "--no-security-blocking" }
+          - { php: "8.2", laravel: "11", testbench: "9", blocking: "--no-security-blocking" }
+          - { php: "8.3", laravel: "12", testbench: "10", blocking: "" }
+          - { php: "8.3", laravel: "13", testbench: "11", blocking: "" }
+          - { php: "8.4", laravel: "13", testbench: "11", blocking: "" }
+    steps:
+      - uses: actions/checkout@v4
+      # The SDK this package wraps. Until it is on Packagist the checkout is how it is found; after, this changes nothing.
+      - uses: actions/checkout@v4
+        with:
+          repository: hermesihq/php
+          path: core
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+          coverage: none
+      - run: composer config repositories.core '{"type":"path","url":"core","options":{"symlink":false,"versions":{"hermesihq/hermesi":"0.1.0"}}}'
+      - run: >
+          composer update --no-interaction --prefer-dist ${{ matrix.blocking }}
+          --with laravel/framework:^${{ matrix.laravel }}.0 --with orchestra/testbench:^${{ matrix.testbench }}.0
+      # The tests talk to a real HTTP server on localhost (tests/Support/server.php), not a fake of the HTTP client.
+      - run: vendor/bin/phpunit
+      - run: vendor/bin/phpstan analyse --no-progress
+        if: matrix.laravel == '13' && matrix.php == '8.3'
+      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+        if: matrix.laravel == '13' && matrix.php == '8.3'
+
+  # What `composer require` serves, used from a fresh `laravel/laravel` application rather than through Testbench.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hermesihq/php
+          path: core
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer:v2
+          coverage: none
+      - run: sh tests/Packaging/run.sh
+        env:
+          HERMESI_CORE_PATH: ${{ github.workspace }}/core
