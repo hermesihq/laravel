@@ -9,6 +9,8 @@ use Hermesi\EventResult;
 use Hermesi\Events;
 use Hermesi\Hermesi as Client;
 use Hermesi\Laravel\Jobs\TriggerHermesiEvent;
+use Hermesi\Messages;
+use Hermesi\SimulatedCall;
 use Hermesi\SimulatedEvent;
 use Hermesi\Subscriber;
 use Hermesi\Subscribers;
@@ -20,6 +22,7 @@ use PHPUnit\Framework\Assert;
 /**
  * @method static bool                 isSimulating()
  * @method static list<SimulatedEvent> simulated()
+ * @method static list<SimulatedCall>  simulatedCalls()
  *
  * @see Client
  */
@@ -32,7 +35,8 @@ final class Hermesi extends Facade
 
     /**
      * The client's resources are properties, which a facade cannot proxy, so each has a method here:
-     * `Hermesi::events()->trigger(...)`, `Hermesi::subscribers()->preferenceLink(...)`, `Hermesi::tokens()->mint(...)`.
+     * `Hermesi::events()->trigger(...)`, `Hermesi::subscribers()->put(...)`, `Hermesi::messages()->send(...)`,
+     * `Hermesi::tokens()->mint(...)`.
      */
     public static function events(): Events
     {
@@ -42,6 +46,11 @@ final class Hermesi extends Facade
     public static function subscribers(): Subscribers
     {
         return self::client()->subscribers;
+    }
+
+    public static function messages(): Messages
+    {
+        return self::client()->messages;
     }
 
     public static function tokens(): Tokens
@@ -141,6 +150,10 @@ final class Hermesi extends Facade
      *
      * An event published with `dispatch()` is recorded when its job runs: with the sync queue driver that is at once, and with
      * `Queue::fake()` assert on `TriggerHermesiEvent` instead.
+     *
+     * Every other write is recorded too, see `assertMessageSent()` and `assertSubscriberWritten()`. A read (`Hermesi::events()->get()`,
+     * `Hermesi::subscribers()->get()`...) throws a SimulationException: there is nothing to read, and an invented answer would make a
+     * test pass for the wrong reason.
      */
     public static function fake(): Client
     {
@@ -183,6 +196,47 @@ final class Hermesi extends Facade
     }
 
     /**
+     * A direct message (`Hermesi::messages()->send()`) was sent on `$channel`. The callback gets the call, whose `body` holds
+     * `channel`, `recipient`, `template` and, if given, `category`, `data` and `priority`.
+     *
+     * @param (callable(SimulatedCall): bool)|null $callback
+     */
+    public static function assertMessageSent(string $channel, ?callable $callback = null): void
+    {
+        Assert::assertNotEmpty(self::sentMessages($channel, $callback), \sprintf('The expected message on the [%s] channel was not sent.', $channel));
+    }
+
+    /**
+     * @param (callable(SimulatedCall): bool)|null $callback
+     */
+    public static function assertMessageNotSent(string $channel, ?callable $callback = null): void
+    {
+        Assert::assertEmpty(self::sentMessages($channel, $callback), \sprintf('The unexpected message on the [%s] channel was sent.', $channel));
+    }
+
+    public static function assertNoMessageSent(): void
+    {
+        $channels = array_map(static fn (SimulatedCall $c): string => \is_string($c->body['channel'] ?? null) ? $c->body['channel'] : '?', self::sentMessages(null, null));
+        Assert::assertEmpty($channels, 'Messages were sent unexpectedly, on: '.implode(', ', $channels));
+    }
+
+    /**
+     * A subscriber was created or updated (`Hermesi::subscribers()->put()` or `patch()`). The callback gets the call, whose `body` holds
+     * only the fields that were given.
+     *
+     * @param (callable(SimulatedCall): bool)|null $callback
+     */
+    public static function assertSubscriberWritten(string $externalId, ?callable $callback = null): void
+    {
+        $path = '/v1/subscribers/'.rawurlencode($externalId);
+        $found = array_filter(
+            self::recordedCalls(),
+            static fn (SimulatedCall $c): bool => $c->path === $path && \in_array($c->method, ['PUT', 'PATCH'], true) && (null === $callback || true === $callback($c)),
+        );
+        Assert::assertNotEmpty($found, \sprintf('The expected write of subscriber [%s] did not happen.', $externalId));
+    }
+
+    /**
      * @param (callable(SimulatedEvent): bool)|null $callback
      *
      * @return list<SimulatedEvent>
@@ -193,6 +247,32 @@ final class Hermesi extends Facade
             self::recorded(),
             static fn (SimulatedEvent $e): bool => $e->name === $name && (null === $callback || true === $callback($e)),
         ));
+    }
+
+    /**
+     * @param (callable(SimulatedCall): bool)|null $callback
+     *
+     * @return list<SimulatedCall>
+     */
+    private static function sentMessages(?string $channel, ?callable $callback): array
+    {
+        return array_values(array_filter(
+            self::recordedCalls(),
+            static fn (SimulatedCall $c): bool => 'POST' === $c->method && '/v1/messages' === $c->path
+                && (null === $channel || ($c->body['channel'] ?? null) === $channel)
+                && (null === $callback || true === $callback($c)),
+        ));
+    }
+
+    /** @return list<SimulatedCall> */
+    private static function recordedCalls(): array
+    {
+        $root = static::getFacadeRoot();
+        if (!$root instanceof Client || !$root->isSimulating()) {
+            throw new \LogicException('Hermesi::fake() must be called before asserting.');
+        }
+
+        return $root->simulatedCalls();
     }
 
     /** @return list<SimulatedEvent> */

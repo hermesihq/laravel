@@ -5,6 +5,21 @@ All notable changes to `hermesihq/laravel`. This file describes what a consumer 
 **`0.x` means the public API can still change.** A minor bump may contain a breaking change; a patch bump will not. Each release
 lists breaking changes first.
 
+## Unreleased
+
+### Added
+
+- `Hermesi::messages()`, for the SDK's new direct send (`send`, `get`). The SDK's other new calls (`events()->get()`, and
+  `subscribers()->put`, `patch`, `get`, `delete`, `registerChannel`, `removeChannel`, `preferences`, `updatePreferences`) are
+  reachable through the existing `events()` and `subscribers()` accessors.
+- `Hermesi::fake()` records those writes too: `assertMessageSent`, `assertMessageNotSent`, `assertNoMessageSent` and
+  `assertSubscriberWritten`, each with a callback that receives the `SimulatedCall`. `simulatedCalls()` is proxied. A read from the
+  fake throws `SimulationException`.
+
+### Changed
+
+- Requires `hermesihq/hermesi` `^0.2` (was `^0.1`), the SDK release that has these calls.
+
 ## 0.1.0 (2026-10-05)
 
 First release.

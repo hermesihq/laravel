@@ -36,6 +36,31 @@ final class ClientTest extends TestCase
         self::assertSame('order-4821-shipped', $request['headers']['idempotency-key']);
     }
 
+    public function testTheMessagesResourceIsReachableThroughTheFacadeAndSendsOneMessage(): void
+    {
+        $this->server()->setDefault(['status' => 202, 'body' => ['message_id' => 'msg_1', 'status' => 'queued', 'messages' => [['id' => 'msg_1', 'channel' => 'sms', 'status' => 'queued', 'reason' => null]]]]);
+
+        $result = Hermesi::messages()->send('sms', 'user_1', 'otp-code', data: ['code' => '1'], idempotencyKey: 'otp-1');
+
+        self::assertSame(['msg_1', 'queued'], [$result->messageId, $result->status]);
+        $request = $this->server()->last();
+        self::assertSame(['POST', '/v1/messages', 'otp-1'], [$request['method'], $request['path'], $request['headers']['idempotency-key']]);
+        self::assertSame('Bearer '.self::KEY, $request['headers']['authorization']);
+    }
+
+    public function testTheSubscribersResourceWritesAndReadsThroughTheFacade(): void
+    {
+        $this->server()->setDefault(['status' => 200, 'body' => ['id' => 'sub_1', 'external_id' => 'user_1', 'email' => 'a@example.test', 'locale' => 'fr']]);
+
+        $profile = Hermesi::subscribers()->put('user_1', ['email' => 'a@example.test', 'locale' => 'fr']);
+        Hermesi::subscribers()->get('user_1');
+
+        self::assertSame('a@example.test', $profile->email);
+        $requests = $this->server()->requests();
+        self::assertSame(['PUT', 'GET'], [$requests[0]['method'], $requests[1]['method']]);
+        self::assertSame('/v1/subscribers/user_1', $requests[0]['path']);
+    }
+
     public function testTheResourcesAreReachableThroughTheFacadeEvenThoughTheyArePropertiesOnTheClient(): void
     {
         $this->server()->setDefault(['status' => 200, 'body' => ['url' => 'https://h.example/preferences/abc']]);

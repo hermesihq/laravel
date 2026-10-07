@@ -41,7 +41,7 @@ composer create-project laravel/laravel app --no-interaction --quiet --prefer-di
 cd app
 composer config repositories.hermesi-laravel '{"type":"path","url":"'"$WORK"'/pkg","options":{"symlink":false,"versions":{"hermesihq/laravel":"0.1.0"}}}'
 if [ -n "${HERMESI_CORE_PATH:-}" ]; then
-  composer config repositories.hermesi-core '{"type":"path","url":"'"$HERMESI_CORE_PATH"'","options":{"symlink":false,"versions":{"hermesihq/hermesi":"0.1.0"}}}'
+  composer config repositories.hermesi-core '{"type":"path","url":"'"$HERMESI_CORE_PATH"'","options":{"symlink":false,"versions":{"hermesihq/hermesi":"0.2.0"}}}'
 fi
 composer config --no-plugins allow-plugins.php-http/discovery true
 composer require --no-interaction --quiet hermesihq/laravel:0.1.0

@@ -6,7 +6,7 @@
 - **A facade and a container binding**, configured from `config/hermesi.php` and your `.env`.
 - **`Hermesi::dispatch()`**: publish an event from a queue worker, so a request does not wait for Hermesi and a Hermesi outage does not fail it.
   Its idempotency key is fixed when you dispatch, so a retried or redelivered job **cannot send a notification twice**.
-- **`Hermesi::fake()`** with assertions, in the style of `Notification::fake()`.
+- **`Hermesi::fake()`** with assertions, in the style of `Notification::fake()`, for events, direct messages and subscriber writes.
 - Laravel 10, 11, 12 and 13, on PHP 8.1 and later.
 
 ## Install
@@ -75,6 +75,28 @@ Two layers of retry, on purpose: the SDK retries a few times inside the same att
 Set the queue in `config/hermesi.php` (`HERMESI_QUEUE_CONNECTION`, `HERMESI_QUEUE`). `Hermesi::dispatch()` returns a `PendingDispatch`, so
 `->delay(...)`, `->onQueue(...)` and the rest of Laravel's job API work.
 
+## Subscribers, event read-back and one-off messages
+
+The SDK's other resources are reachable the same way, as `Hermesi::events()`, `subscribers()` and `messages()`:
+
+```php
+// Keep Hermesi in step with your users table (a key you give is set, null clears it, a key you leave out is left alone).
+Hermesi::subscribers()->put((string) $user->id, ['email' => $user->email, 'locale' => $user->locale, 'phone_e164' => null]);
+Hermesi::subscribers()->registerChannel((string) $user->id, 'push', $deviceToken, ['platform' => 'android']);
+Hermesi::subscribers()->updatePreferences((string) $user->id, categories: ['marketing' => ['email' => false]]);
+Hermesi::subscribers()->delete((string) $user->id); // on account deletion
+
+// What became of an event.
+Hermesi::events()->get($result->eventId)->messages();
+
+// The channel is a requirement (an OTP that must be an SMS): one message through one published template.
+Hermesi::messages()->send('sms', (string) $user->id, 'otp-code', data: ['code' => $code], category: 'security', idempotencyKey: "otp-{$user->id}-{$challenge->id}");
+```
+
+See the [SDK's README](https://github.com/hermesihq/php#keep-your-subscribers-in-sync) for what each does, and read what it says about idempotency
+keys before sending a message: pass your own when your code can run twice. These calls are made when you make them, in the request. Queue them
+yourself (a job of your own) if you do not want a request to wait for Hermesi.
+
 ## Subscriber tokens
 
 A browser or an app talks to Hermesi's client API as one subscriber, with a token minted on your server:
@@ -104,6 +126,23 @@ public function test_shipping_an_order_notifies_the_customer(): void
     Hermesi::assertNothingTriggered(); // when it should not have
 }
 ```
+
+Direct messages and subscriber writes are recorded too, and have their own assertions. The callback gets a `Hermesi\SimulatedCall`, whose
+`body` is the JSON that would have been sent:
+
+```php
+Hermesi::fake();
+
+$this->post('/login/otp')->assertOk();
+
+Hermesi::assertMessageSent('sms', fn (SimulatedCall $c) => $c->body['template'] === 'otp-code' && $c->body['recipient'] === '8821');
+Hermesi::assertMessageNotSent('email');
+Hermesi::assertNoMessageSent();
+Hermesi::assertSubscriberWritten('8821', fn (SimulatedCall $c) => $c->body['locale'] === 'fr');
+```
+
+A read from the fake (`Hermesi::subscribers()->get()`, `Hermesi::events()->get()`...) throws `SimulationException`: there is nothing to read, and an
+invented answer would make a test pass for the wrong reason. Arrange what your code reads by binding your own object in its place.
 
 `fake()` replaces the client everywhere, including where you type-hinted it, and sends nothing. A payload that could not be sent fails in
 your test exactly as it would in production. An event published with `Hermesi::dispatch()` is recorded when its job runs: with the `sync`
