@@ -48,6 +48,23 @@ final class ClientTest extends TestCase
         self::assertSame('Bearer '.self::KEY, $request['headers']['authorization']);
     }
 
+    public function testTheSubscribersResourceImportsInBulkThroughTheFacade(): void
+    {
+        $this->server()->setDefault(['status' => 200, 'body' => ['created' => 1, 'updated' => 1, 'subscribers' => [
+            ['external_id' => 'user_1', 'id' => 'sub_1', 'status' => 'created'],
+            ['external_id' => 'user_2', 'id' => 'sub_2', 'status' => 'updated'],
+        ]]]);
+
+        $result = Hermesi::subscribers()->bulk([['external_id' => 'user_1', 'email' => 'a@example.test'], ['external_id' => 'user_2', 'locale' => null]]);
+
+        $request = $this->server()->last();
+        self::assertSame(['POST', '/v1/subscribers/bulk'], [$request['method'], $request['path']]);
+        self::assertSame('Bearer '.self::KEY, $request['headers']['authorization']);
+        self::assertSame('{"subscribers":[{"external_id":"user_1","email":"a@example.test"},{"external_id":"user_2","locale":null}]}', $request['body']);
+        self::assertSame([1, 1], [$result->created, $result->updated]);
+        self::assertSame('updated', $result->subscribers[1]->status);
+    }
+
     public function testTheSubscribersResourceWritesAndReadsThroughTheFacade(): void
     {
         $this->server()->setDefault(['status' => 200, 'body' => ['id' => 'sub_1', 'external_id' => 'user_1', 'email' => 'a@example.test', 'locale' => 'fr']]);

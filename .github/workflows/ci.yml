@@ -34,7 +34,7 @@ jobs:
           php-version: ${{ matrix.php }}
           tools: composer:v2
           coverage: none
-      - run: composer config repositories.core '{"type":"path","url":"core","options":{"symlink":false,"versions":{"hermesihq/hermesi":"0.2.0"}}}'
+      - run: composer config repositories.core '{"type":"path","url":"core","options":{"symlink":false,"versions":{"hermesihq/hermesi":"0.3.0"}}}'
       - run: >
           composer update --no-interaction --prefer-dist ${{ matrix.blocking }}
           --with laravel/framework:^${{ matrix.laravel }}.0 --with orchestra/testbench:^${{ matrix.testbench }}.0

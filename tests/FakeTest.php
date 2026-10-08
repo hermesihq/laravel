@@ -126,6 +126,31 @@ final class FakeTest extends TestCase
         Hermesi::assertSubscriberWritten('team/42', static fn (): bool => false);
     }
 
+    public function testRecordsABulkImportAndCanLookInsideIt(): void
+    {
+        Hermesi::fake();
+
+        $result = Hermesi::subscribers()->bulk([['external_id' => 'a', 'locale' => 'fr'], ['external_id' => 'b', 'phone_e164' => null]]);
+
+        self::assertSame([2, 0], [$result->created, $result->updated]);
+        self::assertSame([], $this->server()->requests(), 'no request was made');
+        Hermesi::assertSubscribersImported();
+        Hermesi::assertSubscribersImported(static fn (SimulatedCall $c): bool => [['external_id' => 'a', 'locale' => 'fr'], ['external_id' => 'b', 'phone_e164' => null]] === ($c->body['subscribers'] ?? null));
+        $this->expectException(AssertionFailedError::class);
+        Hermesi::assertSubscribersImported(static fn (): bool => false);
+    }
+
+    public function testABulkImportAssertionFailsWhenNoneHappenedAndAMessageIsNotOne(): void
+    {
+        Hermesi::fake();
+        Hermesi::messages()->send('sms', 'user_1', 'otp-code');
+        Hermesi::subscribers()->put('user_1', ['locale' => 'fr']);
+
+        $this->expectException(AssertionFailedError::class);
+
+        Hermesi::assertSubscribersImported();
+    }
+
     public function testAReadFromTheFakeThrowsInsteadOfInventingAnAnswer(): void
     {
         Hermesi::fake();

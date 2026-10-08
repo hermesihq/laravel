@@ -86,6 +86,11 @@ Hermesi::subscribers()->registerChannel((string) $user->id, 'push', $deviceToken
 Hermesi::subscribers()->updatePreferences((string) $user->id, categories: ['marketing' => ['email' => false]]);
 Hermesi::subscribers()->delete((string) $user->id); // on account deletion
 
+// A first import or a nightly sync: up to 1 000 per call, all or nothing (a ValidationException lists every bad row and writes nothing).
+foreach (User::query()->select(['id', 'email', 'locale'])->lazyById(1000)->chunk(1000) as $chunk) {
+    Hermesi::subscribers()->bulk($chunk->map(fn (User $u) => ['external_id' => (string) $u->id, 'email' => $u->email, 'locale' => $u->locale])->all());
+}
+
 // What became of an event.
 Hermesi::events()->get($result->eventId)->messages();
 
@@ -139,6 +144,7 @@ Hermesi::assertMessageSent('sms', fn (SimulatedCall $c) => $c->body['template'] 
 Hermesi::assertMessageNotSent('email');
 Hermesi::assertNoMessageSent();
 Hermesi::assertSubscriberWritten('8821', fn (SimulatedCall $c) => $c->body['locale'] === 'fr');
+Hermesi::assertSubscribersImported(fn (SimulatedCall $c) => count($c->body['subscribers']) === 3); // a bulk import
 ```
 
 A read from the fake (`Hermesi::subscribers()->get()`, `Hermesi::events()->get()`...) throws `SimulationException`: there is nothing to read, and an
