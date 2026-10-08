@@ -151,7 +151,7 @@ final class Hermesi extends Facade
      * An event published with `dispatch()` is recorded when its job runs: with the sync queue driver that is at once, and with
      * `Queue::fake()` assert on `TriggerHermesiEvent` instead.
      *
-     * Every other write is recorded too, see `assertMessageSent()` and `assertSubscriberWritten()`. A read (`Hermesi::events()->get()`,
+     * Every other write is recorded too, see `assertMessageSent()`, `assertSubscriberWritten()` and `assertSubscribersImported()`. A read (`Hermesi::events()->get()`,
      * `Hermesi::subscribers()->get()`...) throws a SimulationException: there is nothing to read, and an invented answer would make a
      * test pass for the wrong reason.
      */
@@ -234,6 +234,21 @@ final class Hermesi extends Facade
             static fn (SimulatedCall $c): bool => $c->path === $path && \in_array($c->method, ['PUT', 'PATCH'], true) && (null === $callback || true === $callback($c)),
         );
         Assert::assertNotEmpty($found, \sprintf('The expected write of subscriber [%s] did not happen.', $externalId));
+    }
+
+    /**
+     * A bulk import (`Hermesi::subscribers()->bulk()`) was sent. The callback gets the call, whose `body['subscribers']` is the list of
+     * rows exactly as they would have been sent: only the keys that were given, `null` where a field was cleared.
+     *
+     * @param (callable(SimulatedCall): bool)|null $callback
+     */
+    public static function assertSubscribersImported(?callable $callback = null): void
+    {
+        $found = array_filter(
+            self::recordedCalls(),
+            static fn (SimulatedCall $c): bool => 'POST' === $c->method && '/v1/subscribers/bulk' === $c->path && (null === $callback || true === $callback($c)),
+        );
+        Assert::assertNotEmpty($found, 'The expected bulk import of subscribers did not happen.');
     }
 
     /**
